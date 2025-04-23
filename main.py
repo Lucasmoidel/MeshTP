@@ -3,6 +3,7 @@ import meshtastic.serial_interface
 import time
 from pubsub import pub
 import sys
+import hashlib
 
 
 for i in sys.argv:
@@ -24,16 +25,28 @@ print(isServer)
 filename = sys.argv[2]
 file = open(filename, "rb")
 hexString = ''.join([f'{byte:02x}' for byte in file.read()])
-print (hexString)
+#print (hexString)
 masterHeader = ""
-
+masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16]
+print (masterHash)
 file2 = open("/home/lucas/Documents/MeshTP/thing.png", "wb")
 file2.write(bytes.fromhex(hexString))
 
 file.close()
 file2.close()
 
+file3 = open(filename, "rb")
 
+masterHash2 = hashlib.file_digest(file3, "sha256").hexdigest()[:16]
+print (masterHash2)
+
+hexString = [hexString[i:i+192] for i in range(0, len(hexString), 192)]
+
+hashes = []
+
+for i in hexString:
+    hashes.append(hashlib.sha256(i.encode('utf-8')).hexdigest()[:4])
+print (hashes)
 
 
 
