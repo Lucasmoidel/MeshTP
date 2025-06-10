@@ -1,0 +1,3 @@
+MeshTP Version 0.1
+usage: meshtp [ send | recive ] [filename] [option]
+--help : print this message
