@@ -6,15 +6,20 @@ from pubsub import pub
 import sys
 import hashlib
 import mesh
-print (len(sys.argv))
+
+def printHelpCommand():
+    messigefile = open("help.txt", "r")
+    print(messigefile.read())
+    messigefile.close()
+
 if len(sys.argv) < 4:
     print("incorrect number of argument\n")
-    mesh.printHelpCommand()
+    printHelpCommand()
     sys.exit(1)
 
 for i in sys.argv:
     if i == "--help":
-        mesh.printHelpCommand() # explain the command line options
+        printHelpCommand() # explain the command line options
         sys.exit(0)
 
 isServer = False
@@ -25,7 +30,7 @@ elif sendOrRecive == "recive":
     isServer = True;
 else:
     print("incorrect program role\n")
-    mesh.printHelpCommand() # explain the command line options
+    printHelpCommand() # explain the command line options
     sys.exit(1)
 
 filename = sys.argv[2]
@@ -41,7 +46,7 @@ hexString = ''.join([f'{byte:02x}' for byte in file.read()])
 file.seek(0)
 
 masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16]
-print ("\n\nmasterHash: " + masterHash)
+#print ("\n\nmasterHash: " + masterHash)
 
 
 hexpackets = [hexString[i:i+190] for i in range(0, len(hexString), 190)]
@@ -55,19 +60,14 @@ n = 1
 
 for i in hexpackets:
     string = f"{n:04x}" + f"{len(i):02x}" + hashlib.sha256(i.encode("utf8")).hexdigest()[:4] + i
-    print(f"{n:04x}" + ", " + f"{len(i):02x}" + ", " + hashlib.sha256(i.encode("utf8")).hexdigest()[:4])
     n+=1
-    print(len(string))
     packets.append(string)
-print(packets)
 
 newhex = ''
 
 for i in packets:
     datalen = int(i[4:6], 16)
-    print(datalen)
     newhex = newhex + i[10:200]
-print("\n\n\n\n\n\n" + newhex + "\n\n" + hexString)
 print (newhex==hexString)
 #hashlib.sha256(file.read()).hexdigest()[:16]
 file2 = open("/home/lucas/Documents/MeshTP/thing.txt", "wb")
