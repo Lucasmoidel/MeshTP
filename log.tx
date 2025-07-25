@@ -1,0 +1,81 @@
+True
+233
+device connected
+sent
+{'from': 399857586, 'to': 4294967295, 'decoded': {'portnum': 'NODEINFO_APP', 'payload': b'\n\t!17d557b2\x12\tBen N6BRL\x1a\x046BRL"\x06\xce\xdd\x17\xd5W\xb2(G8\x01B 9\xa3\xa6\x0f{lD2\x85\x12\r\xf4\xfa\xf4\x02-\x87]<\xbf@\xfb\xba\x8b\xad\xa3\x8az\x98zP4', 'bitfield': 1, 'user': {'id': '!17d557b2', 'longName': 'Ben N6BRL', 'shortName': '6BRL', 'macaddr': 'zt0X1Vey', 'hwModel': 'TRACKER_T1000_E', 'role': 'CLIENT_MUTE', 'publicKey': 'OaOmD3tsRDKFEg30+vQCLYddPL9A+7qLraOKeph6UDQ=', 'raw': id: "!17d557b2"
+long_name: "Ben N6BRL"
+short_name: "6BRL"
+macaddr: "\316\335\027\325W\262"
+hw_model: TRACKER_T1000_E
+role: CLIENT_MUTE
+public_key: "9\243\246\017{lD2\205\022\r\364\372\364\002-\207]<\277@\373\272\213\255\243\212z\230zP4"
+}}, 'id': 4273971179, 'rxTime': 1749613756, 'rxSnr': 9.25, 'hopLimit': 3, 'rxRssi': -83, 'hopStart': 6, 'relayNode': 12, 'raw': from: 399857586
+to: 4294967295
+decoded {
+  portnum: NODEINFO_APP
+  payload: "\n\t!17d557b2\022\tBen N6BRL\032\0046BRL\"\006\316\335\027\325W\262(G8\001B 9\243\246\017{lD2\205\022\r\364\372\364\002-\207]<\277@\373\272\213\255\243\212z\230zP4"
+  bitfield: 1
+}
+id: 4273971179
+rx_time: 1749613756
+rx_snr: 9.25
+hop_limit: 3
+rx_rssi: -83
+hop_start: 6
+relay_node: 12
+, 'fromId': '!17d557b2', 'toId': '^all'}
+{'from': 1128063444, 'to': 4294967295, 'decoded': {'portnum': 'TELEMETRY_APP', 'payload': b'\r\xbd\xfcHh\x12\x15\x08e\x15u\x93\x88@\x1d\xc9/&@%\xb5\x14\xa1>(\xe0\xe4\x04', 'telemetry': {'time': 1749613757, 'deviceMetrics': {'batteryLevel': 101, 'voltage': 4.268, 'channelUtilization': 2.5966666, 'airUtilTx': 0.3146111, 'uptimeSeconds': 78432}, 'raw': time: 1749613757
+device_metrics {
+  battery_level: 101
+  voltage: 4.268
+  channel_utilization: 2.59666657
+  air_util_tx: 0.314611107
+  uptime_seconds: 78432
+}
+}}, 'id': 1812822631, 'rxTime': 1749613757, 'hopLimit': 3, 'priority': 'BACKGROUND', 'raw': from: 1128063444
+to: 4294967295
+decoded {
+  portnum: TELEMETRY_APP
+  payload: "\r\275\374Hh\022\025\010e\025u\223\210@\035\311/&@%\265\024\241>(\340\344\004"
+}
+id: 1812822631
+rx_time: 1749613757
+hop_limit: 3
+priority: BACKGROUND
+, 'fromId': '!433ce1d4', 'toId': '^all'}
+{'from': 1652206918, 'to': 4294967295, 'decoded': {'portnum': 'TELEMETRY_APP', 'payload': b'\r\xc9\xfcHh\x12\x16\x08]\x15o\x12\x83@\x1d\xca/\xe5A%\xb30R@(\xbf\xdc\xd9\x01', 'bitfield': 1, 'telemetry': {'time': 1749613769, 'deviceMetrics': {'batteryLevel': 93, 'voltage': 4.096, 'channelUtilization': 28.648335, 'airUtilTx': 3.2842224, 'uptimeSeconds': 3567167}, 'raw': time: 1749613769
+device_metrics {
+  battery_level: 93
+  voltage: 4.096
+  channel_utilization: 28.6483345
+  air_util_tx: 3.28422236
+  uptime_seconds: 3567167
+}
+}}, 'id': 1612471983, 'rxTime': 1749613760, 'rxSnr': 8.25, 'hopLimit': 1, 'rxRssi': -83, 'hopStart': 5, 'relayNode': 12, 'raw': from: 1652206918
+to: 4294967295
+decoded {
+  portnum: TELEMETRY_APP
+  payload: "\r\311\374Hh\022\026\010]\025o\022\203@\035\312/\345A%\2630R@(\277\334\331\001"
+  bitfield: 1
+}
+id: 1612471983
+rx_time: 1749613760
+rx_snr: 8.25
+hop_limit: 1
+rx_rssi: -83
+hop_start: 5
+relay_node: 12
+, 'fromId': '!627aad46', 'toId': '^all'}
+{'from': 2733257052, 'to': 4294967295, 'channel': 56, 'encrypted': 'mU+2gUG+ejDLA8/cyBnt1E7eXAAbTEkvKNgvclolRzmW', 'id': 2653897227, 'rxTime': 1749613766, 'rxSnr': 7.5, 'hopLimit': 1, 'rxRssi': -82, 'hopStart': 3, 'relayNode': 12, 'raw': from: 2733257052
+to: 4294967295
+channel: 56
+encrypted: "\231O\266\201A\276z0\313\003\317\334\310\031\355\324N\336\\\000\033LI/(\330/rZ%G9\226"
+id: 2653897227
+rx_time: 1749613766
+rx_snr: 7.5
+hop_limit: 1
+rx_rssi: -82
+hop_start: 3
+relay_node: 12
+, 'fromId': None, 'toId': '^all'}
+Disconnecting...
