@@ -37,7 +37,7 @@ def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect 
 
         filename = sys.argv[2] # name of file
         destination_ID='!e3549734' # hex id of destination node
-        numberOfPakets = math.ceil(os.path.getsize(filename) / 198)
+        numberOfPakets = math.ceil(os.path.getsize(filename) / 99)
         print (os.path.getsize(filename))
         file = open(filename, "rb") # open the file
         masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
@@ -49,11 +49,12 @@ def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect 
             sys.exit(1)
         file.seek(0)
         #packet, hexbytes = ''
-        for i in range(3):
-            hexbytes = file.read(198)
-            packet = ''.join((f"{i:06x}",f"{len(hexbytes):02x}",hashlib.sha256(hexbytes).hexdigest()[:4], hexbytes.decode("utf-8")))
-
-        interface.sendText("packet", destinationId=destination_ID)
+        for i in range(1):
+            payload = ''
+            for bytes in file.read(99):
+                payload = ''.join((payload, f"{bytes:02x}"))
+            packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], payload))
+        interface.sendText(packet, destinationId=destination_ID)
         file.close() # close the new file
         print("sent")
     
