@@ -3,7 +3,7 @@ import time, os, meshtastic.serial_interface, meshtastic, math
 from pubsub import pub
 import sys
 import hashlib
-
+import time
 
 def printHelpCommand(): # print help
     messigefile = open("help.txt", "r")
@@ -18,7 +18,7 @@ if len(sys.argv) < 3: # ensure correft number of args
 for i in sys.argv: # check for --help
     if i == "--help":
         printHelpCommand() # explain the command line options
-        sys.exit(0)
+        sys.exit(1)
 
 
 
@@ -37,8 +37,8 @@ else: # inclorrect syntax and print help
 if isServer == False:
     size = 80
     filename = sys.argv[2] # name of file
-    nodeID='!30ca4899' # hex id of destination node
-    numberOfPakets = math.ceil(os.path.getsize(filename) / (size*2))
+    nodeID=818563225 # hex id of destination node
+    numberOfPakets = math.ceil(os.path.getsize(filename) / size)
     print (numberOfPakets)
     file = open(filename, "rb") # open the file
     masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
@@ -50,6 +50,16 @@ if isServer == False:
     file.seek(0)
     i = 0;
     def sendPacket(interface, eof=False, master=False):
+        if not eof and not master:
+                #packet, hexbytes = ''
+            payload = ''
+            for bytes in file.read(size):
+                payload = ''.join((payload, f"{bytes:02x}"))
+            packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], payload))
+            interface.sendText(packet, channelIndex=1)
+            packet = ''
+        
+            print("sent packet " + str(i))
         if master:
             packet = ''.join((f"MeshTP",f"{numberOfPakets:06x}", masterHash))
             print (masterHash)
@@ -58,17 +68,8 @@ if isServer == False:
             interface.sendText(packet, channelIndex=1)
             packet = ''
             print("sent master packet ")
-        if (not eof):
-                #packet, hexbytes = ''
-            payload = ''
-            for bytes in file.read(size):
-                payload = ''.join((payload, f"{bytes:02x}"))
-            packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], " ", payload))
-            interface.sendText(packet, channelIndex=1)
-            packet = ''
-        
-            print("sent packet " + str(i))
-        else:
+
+        if eof:
             interface.sendText("EOF", channelIndex=1)
             print("sent EOF packet")
 
@@ -76,7 +77,7 @@ if isServer == False:
 
     def onReceive(packet, interface):
         global i
-        if packet['fromId'] == '!30ca4899':
+        if packet['from'] == nodeID or packet['from'] == 1128063444:
             if packet['decoded']['payload'] == b'ok':
                 print("got ok")
                 if(i < numberOfPakets):
@@ -84,6 +85,7 @@ if isServer == False:
                     i+=1
                 else:
                     sendPacket(interface, True)
+                    close()
         
     def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect to the radio
         print("device connected")
@@ -94,13 +96,15 @@ if isServer == False:
     pub.subscribe(onReceive, "meshtastic.receive")
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
-    try:
-        while True:
-            time.sleep(1000)
-    except KeyboardInterrupt:
+    def close():
         print("Disconnecting...")
         file.close() # close the new file
         interface.close()
+    try:
+        while True:
+            time.sleep(200)
+    except KeyboardInterrupt:
+        close()
 
 
 if isServer == True:
@@ -111,49 +115,63 @@ if isServer == True:
     #masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
 
     i = 0;
-    def sendPacket(interface, eof=False):
-        # if (not eof):
-        #         #packet, hexbytes = ''
-        #     cont = False
-        #     payload = ''
-        #     for bytes in file.read(size):
-        #         payload = ''.join((payload, f"{bytes:02x}"))
-        #     print (file.tell()/size)
-        #     packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], " ", payload))
-        #     interface.sendText(packet, channelIndex=1)
-        #     packet = ''
+    def sendPacket(interface, ready=False):
+        if (not ready):
+                 #packet, hexbytes = ''
+             cont = False
+             payload = ''
+             for bytes in file.read(size):
+                 payload = ''.join((payload, f"{bytes:02x}"))
+             print (file.tell()/size)
+             packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], " ", payload))
+             interface.sendText(packet, channelIndex=1)
+             packet = ''
         
-        #     print("sent packet " + str(i))
-        # else:
-        #     interface.sendText("EOF", channelIndex=1)
-        #     print("sent EOF packet")
-        pass
+             print("sent packet " + str(i))
+        else:
+             time.sleep(1)
+             interface.sendText("ok", channelIndex=1)
+             print("sent ok")
+
 
         
 
     def onReceive(packet, interface):
         global i
+        global nodeID
+        global numberOfPakets
+        global file
+        length = 0
+        check = b''
+        payload = b''
         if (len(packet.get('decoded' , "")) > 0):
-            if (len(packet['decoded'].get("payload" , "")) > 0):
+            if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
+                if packet['decoded']['payload'][0:3] == b'EOF':
+                    close()
                 if packet['decoded']['payload'][0:6] == b'MeshTP':
-                    nodeID = packet['fromId']
-                    print(nodeID)
+                    nodeID = packet['from']
+                    print(packet['decoded']['payload'][6:12])
                     numberOfPakets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
-                    print(packet['decoded']['payload'][6:12].decode('utf-8'))
-                    print(numberOfPakets)
-                    print(packet['decoded']['payload'])
                     masterHash = packet['decoded']['payload'][12:]
+                    print(nodeID)
+                    print(numberOfPakets)
                     print(masterHash)
+                    print("\n\n")
+                    sendPacket(interface, ready=True)
+
+                elif packet['from'] == nodeID and len(packet['decoded']['payload']) >= 12 and packet.get('channel' , "") == 1:
+                    packetnum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
+                    length = int(packet['decoded']['payload'][6:8].decode('utf-8'), 16)
+                    check = packet['decoded']['payload'][8:12]
+                    payload = packet['decoded']['payload'][12:length+12]
+                    print(str(packetnum) + " " + str(length) + " " + str(check))
+                    print(hashlib.sha256(payload.decode('utf-8').encode('utf-8')).hexdigest()[:4] == check.decode('utf-8'))
+                    file.write(bytes.fromhex(payload.decode('utf-8')))
+                    sendPacket(interface, ready=True)
+
+                
 
 
-        # if packet['decoded']['payload'] == b'ok':
-        #     print("got ok")
-        #     if(i < numberOfPakets):
-        #         sendPacket(interface)
-        #         i+=1
-        #     else:
-        #         sendPacket(interface, True)
-        
     def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect to the radio
         print("device connected")
     
@@ -162,13 +180,18 @@ if isServer == True:
     pub.subscribe(onReceive, "meshtastic.receive")
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
-    try:
-        while True:
-            time.sleep(1000)
-    except KeyboardInterrupt:
+    def close():
+        global file
         print("Disconnecting...")
         file.close() # close the new file
         interface.close()
+
+    try:
+        while True:
+            time.sleep(200)
+    except KeyboardInterrupt:
+        close()
+
 
 
 
