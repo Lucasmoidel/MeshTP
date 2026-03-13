@@ -4,11 +4,12 @@ from pubsub import pub
 import sys
 import hashlib
 
+
 def printHelpCommand(): # print help
     messigefile = open("help.txt", "r")
     print(messigefile.read())
     messigefile.close()
-if len(sys.argv) < 4: # ensure correft number of args
+if len(sys.argv) < 3: # ensure correft number of args
     print("incorrect number of argument\n")
     printHelpCommand()
     sys.exit(1)
@@ -17,7 +18,7 @@ for i in sys.argv: # check for --help
     if i == "--help":
         printHelpCommand() # explain the command line options
         sys.exit(0)
-
+cont = False
 isServer = False # set default server val
 sendOrRecive = sys.argv[1] # send or recive is set to arg 1
 if sendOrRecive == "send": # set isServer based on sendOrRecive
@@ -29,47 +30,67 @@ else: # inclorrect syntax and print help
     printHelpCommand() # explain the command line options
     sys.exit(1)
 
-def onReceive(packet, interface):
-    pass
-def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect to the radio
-    print("device connected")
-    if isServer == False:
+if isServer == False:
+    size = 80
+    filename = sys.argv[2] # name of file
+    destination_ID='!30ca4899' # hex id of destination node
+    numberOfPakets = math.ceil(os.path.getsize(filename) / size)
+    print (os.path.getsize(filename))
+    file = open(filename, "rb") # open the file
+    masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
 
-        filename = sys.argv[2] # name of file
-        destination_ID='!e3549734' # hex id of destination node
-        numberOfPakets = math.ceil(os.path.getsize(filename) / 99)
-        print (os.path.getsize(filename))
-        file = open(filename, "rb") # open the file
-        masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
-
-        if numberOfPakets > 16777215: # make sure the number of packets can be represented with 6 bytes of hex
-            file.close() # close the new file
-            print("file is to large")
-            printHelpCommand()
-            sys.exit(1)
-        file.seek(0)
-        #packet, hexbytes = ''
-        for i in range(1):
-            payload = ''
-            for bytes in file.read(99):
-                payload = ''.join((payload, f"{bytes:02x}"))
-            packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], payload))
-        interface.sendText(packet, destinationId=destination_ID)
+    if numberOfPakets > 16777215: # make sure the number of packets can be represented with 6 bytes of hex
         file.close() # close the new file
-        print("sent")
+        print("file is to large")
+        printHelpCommand()
+        sys.exit(1)
+    file.seek(0)
+    i = 1;
+    def sendPacket(interface, eof=False):
+        if (not eof):
+                #packet, hexbytes = ''
+            cont = False
+            payload = ''
+            for bytes in file.read(size):
+                payload = ''.join((payload, f"{bytes:02x}"))
+            print (file.tell()/size)
+            packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], " ", payload))
+            interface.sendText(packet, destinationId=destination_ID)
+            packet = ''
+        
+            print("sent packet " + str(i))
+        else:
+            interface.sendText("EOF", destinationId=destination_ID)
+            print("sent EOF packet")
+
+        
+
+    def onReceive(packet, interface):
+        global i
+        if packet['fromId'] == '!30ca4899':
+            if packet['decoded']['payload'] == b'ok':
+                print("got ok")
+                if(i < numberOfPakets):
+                    sendPacket(interface)
+                    i+=1
+                else:
+                    sendPacket(interface, True)
+        
+    def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect to the radio
+        print("device connected")
     
 
-interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyUSB0')
+    interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyACM0')
+    pub.subscribe(onReceive, "meshtastic.receive")
+    pub.subscribe(onConnection, "meshtastic.connection.established")
 
-pub.subscribe(onReceive, "meshtastic.receive")
-pub.subscribe(onConnection, "meshtastic.connection.established")
-
-try:
-    while True:
-        time.sleep(1000)
-except KeyboardInterrupt:
-    print("Disconnecting...")
-    interface.close()
+    try:
+        while True:
+            time.sleep(1000)
+    except KeyboardInterrupt:
+        print("Disconnecting...")
+        file.close() # close the new file
+        interface.close()
 
 
 
