@@ -4,6 +4,9 @@ from pubsub import pub
 import sys
 import hashlib
 import time
+import threading
+
+
 
 def printHelpCommand(): # print help
     messigefile = open("help.txt", "r")
@@ -35,7 +38,7 @@ else: # inclorrect syntax and print help
     sys.exit(1)
 
 if isServer == False:
-    size = 80
+    size = 100
     filename = sys.argv[2] # name of file
     nodeID=818563225 # hex id of destination node
     numberOfPakets = math.ceil(os.path.getsize(filename) / size)
@@ -49,6 +52,7 @@ if isServer == False:
         sys.exit(1)
     file.seek(0)
     i = 0;
+    start = False
     def sendPacket(interface, eof=False, master=False):
         if not eof and not master:
                 #packet, hexbytes = ''
@@ -61,7 +65,7 @@ if isServer == False:
         
             print("sent packet " + str(i))
         if master:
-            packet = ''.join((f"MeshTP",f"{numberOfPakets:06x}", masterHash))
+            packet = ''.join((f"MeshTP",f"{numberOfPakets:06x}", masterHash, filename))
             print (masterHash)
 
             print(f"{numberOfPakets:06x}")
@@ -77,12 +81,17 @@ if isServer == False:
 
     def onReceive(packet, interface):
         global i
+        global start
         if packet['from'] == nodeID or packet['from'] == 1128063444:
-            if packet['decoded']['payload'] == b'ok':
-                print("got ok")
+            if packet['decoded']['payload'] == b'ok master':
+                start = True
+                sendPacket(interface)
+            elif packet['decoded']['payload'][0:2] == b'ok' and start:
+                i = int(packet['decoded']['payload'][3:].decode('utf-8'), 16)+1
+
+                print("got ok " + str(i-1))
                 if(i < numberOfPakets):
                     sendPacket(interface)
-                    i+=1
                 else:
                     sendPacket(interface, True)
                     close()
@@ -92,7 +101,7 @@ if isServer == False:
         sendPacket(interface, master=True)
     
 
-    interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyACM0')
+    interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyACM1')
     pub.subscribe(onReceive, "meshtastic.receive")
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
@@ -102,36 +111,37 @@ if isServer == False:
         interface.close()
     try:
         while True:
-            time.sleep(200)
+            time.sleep(100)
     except KeyboardInterrupt:
         close()
 
 
 if isServer == True:
-    filename = sys.argv[2] # name of file
+    filename  = "" # name of file
     nodeID = ''
     numberOfPakets = 0
-    file = open(filename, "wb") # open the file
-    #masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
+    file = 0
+    end = False
+    size = 0
 
     i = 0;
+
+    def timer(interface, packetnum, ready):
+        print(i)
+        print(packetnum)
+        if (i == packetnum and not end):
+            print("retry")
+            sendPacket(interface, ready)
+
     def sendPacket(interface, ready=False):
-        if (not ready):
-                 #packet, hexbytes = ''
-             cont = False
-             payload = ''
-             for bytes in file.read(size):
-                 payload = ''.join((payload, f"{bytes:02x}"))
-             print (file.tell()/size)
-             packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], " ", payload))
-             interface.sendText(packet, channelIndex=1)
-             packet = ''
-        
-             print("sent packet " + str(i))
+        if ready:
+             interface.sendText("ok master", channelIndex=1)
+             print("sent ok master")
+             threading.Timer(10, timer, args=(interface, i, ready)).start()
         else:
-             time.sleep(1)
-             interface.sendText("ok", channelIndex=1)
-             print("sent ok")
+             interface.sendText(("ok " + f"{i:06x}"), channelIndex=1)
+             print("sent ok " + f"{i:06x}")
+             threading.Timer(10, timer, args=(interface, i, ready)).start()
 
 
         
@@ -141,33 +151,48 @@ if isServer == True:
         global nodeID
         global numberOfPakets
         global file
+        global filename
+        global end
+        global size
         length = 0
         check = b''
         payload = b''
         if (len(packet.get('decoded' , "")) > 0):
             if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
                 if packet['decoded']['payload'][0:3] == b'EOF':
-                    close()
+                    end = True
+                    file.close()
+                    print("done " + filename)
                 if packet['decoded']['payload'][0:6] == b'MeshTP':
+                    end = False
                     nodeID = packet['from']
                     print(packet['decoded']['payload'][6:12])
                     numberOfPakets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
-                    masterHash = packet['decoded']['payload'][12:]
+                    masterHash = packet['decoded']['payload'][12:28]
+                    filename = packet['decoded']['payload'][28:].decode('utf-8')
                     print(nodeID)
                     print(numberOfPakets)
                     print(masterHash)
+                    print(filename)
                     print("\n\n")
+                    file = open(filename, "wb")
                     sendPacket(interface, ready=True)
 
-                elif packet['from'] == nodeID and len(packet['decoded']['payload']) >= 12 and packet.get('channel' , "") == 1:
+                elif packet['from'] == nodeID and len(packet['decoded']['payload']) >= 12 and packet.get('channel' , "") == 1 and not end:
                     packetnum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
                     length = int(packet['decoded']['payload'][6:8].decode('utf-8'), 16)
                     check = packet['decoded']['payload'][8:12]
                     payload = packet['decoded']['payload'][12:length+12]
                     print(str(packetnum) + " " + str(length) + " " + str(check))
                     print(hashlib.sha256(payload.decode('utf-8').encode('utf-8')).hexdigest()[:4] == check.decode('utf-8'))
+                    i = packetnum
+                    if i == 0:
+                        size = int(length/2)
+                    file.seek(size * i)
                     file.write(bytes.fromhex(payload.decode('utf-8')))
-                    sendPacket(interface, ready=True)
+                    sendPacket(interface)
+                    i+=1
+
 
                 
 
@@ -176,47 +201,17 @@ if isServer == True:
         print("device connected")
     
 
-    interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyACM1')
+    interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyACM0')
     pub.subscribe(onReceive, "meshtastic.receive")
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
     def close():
-        global file
         print("Disconnecting...")
-        file.close() # close the new file
         interface.close()
 
     try:
         while True:
-            time.sleep(200)
+            time.sleep(100)
+
     except KeyboardInterrupt:
         close()
-
-
-
-
-
-
-'''
-
-
-
-for i in range(len(packets)): # generate the packets with the header and the payload
-    
-
-newhex = '' # create newhex variable
-
-for i in packets: # reasemble the hex data to create the original hexString variable
-    datalen = int(i[6:8], 16)
-    newhex = newhex + i[12:210]
-print (newhex==hexString) # check to make sure it encoded and decoded it correctly (the hexString and the newhex strings are the same)
-#hashlib.sha256(file.read()).hexdigest()[:16]
-file2 = open("/home/lucas/Documents/MeshTP/thing.txt", "wb") # open a new file
-file2.write(bytes.fromhex(newhex)) # write the decoded data to a new file
-
-file2.close() # close the new file
-
-
-
-
-'''
