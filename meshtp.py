@@ -11,9 +11,11 @@ todo:
 
 1 add user defined serial device ✅
 2 add user defined mesh device (hex or decimal) and remove man in the middle ✅
-3 add -o output file for recive ✅
-4 add progress bar
-5 compression???
+3 use DM instead of channel 
+4 add -o output file for recive ✅
+5 add progress bar
+6 compression???
+7 move to a new channel / freq to not interfere with regular traffic ??
 '''
 
 debug = False
