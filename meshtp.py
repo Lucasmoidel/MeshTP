@@ -6,7 +6,7 @@ import hashlib
 import time
 import threading
 
-
+debug = False
 
 def printHelpCommand(): # print help
     messigefile = open("help.txt", "r")
@@ -38,11 +38,12 @@ else: # inclorrect syntax and print help
     sys.exit(1)
 
 if isServer == False:
-    size = 100
+    done = False
+    size = 210
     filename = sys.argv[2] # name of file
     nodeID=818563225 # hex id of destination node
     numberOfPakets = math.ceil(os.path.getsize(filename) / size)
-    print (numberOfPakets)
+    print(str(numberOfPakets) + " packets")
     file = open(filename, "rb") # open the file
     masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
     if numberOfPakets > 16777215: # make sure the number of packets can be represented with 6 bytes of hex
@@ -56,19 +57,20 @@ if isServer == False:
     def sendPacket(interface, eof=False, master=False):
         if not eof and not master:
                 #packet, hexbytes = ''
-            payload = ''
-            for bytes in file.read(size):
-                payload = ''.join((payload, f"{bytes:02x}"))
-            packet = ''.join((f"{i:06x}",f"{len(payload):02x}",hashlib.sha256(payload.encode("utf-8")).hexdigest()[:4], payload))
-            interface.sendText(packet, channelIndex=1)
+            payload = b''
+            file.seek(size*i)
+            payload = file.read(size)
+            packet = b''.join((f"{i:06x}".encode('utf-8'), f"{len(payload):02x}".encode('utf-8'), "0000".encode('utf-8'), payload))
+            interface.sendData(packet, channelIndex=1)
             packet = ''
-        
+            
             print("sent packet " + str(i))
         if master:
             packet = ''.join((f"MeshTP",f"{numberOfPakets:06x}", masterHash, filename))
-            print (masterHash)
-
-            print(f"{numberOfPakets:06x}")
+            if debug:
+                print (masterHash)
+                print(f"{numberOfPakets:06x}")
+                
             interface.sendText(packet, channelIndex=1)
             packet = ''
             print("sent master packet ")
@@ -89,7 +91,8 @@ if isServer == False:
             elif packet['decoded']['payload'][0:2] == b'ok' and start:
                 i = int(packet['decoded']['payload'][3:].decode('utf-8'), 16)+1
 
-                print("got ok " + str(i-1))
+                if debug:
+                    print("got ok " + str(i-1))
                 if(i < numberOfPakets):
                     sendPacket(interface)
                 else:
@@ -106,12 +109,16 @@ if isServer == False:
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
     def close():
+        global done
         print("Disconnecting...")
         file.close() # close the new file
         interface.close()
+        done = True
     try:
         while True:
-            time.sleep(100)
+            time.sleep(0.1)
+            if done:
+                sys.exit(0)
     except KeyboardInterrupt:
         close()
 
@@ -123,25 +130,26 @@ if isServer == True:
     file = 0
     end = False
     size = 0
+    masterHash = ''
 
     i = 0;
 
     def timer(interface, packetnum, ready):
-        print(i)
-        print(packetnum)
         if (i == packetnum and not end):
-            print("retry")
-            sendPacket(interface, ready)
+            if debug:
+                print("retry !!!!!!!!!!!!!!!! " + str(i) + " " + str(packetnum))
 
-    def sendPacket(interface, ready=False):
-        if ready:
-             interface.sendText("ok master", channelIndex=1)
-             print("sent ok master")
-             threading.Timer(10, timer, args=(interface, i, ready)).start()
+            sendPacket(interface, packetnum, ready)
+
+    def sendPacket(interface, num, ready=False):
+        if ready == True:
+            interface.sendText("ok master", channelIndex=1)
+            print("sent ok master")
+            threading.Timer(15, timer, args=(interface, num, ready)).start()
         else:
-             interface.sendText(("ok " + f"{i:06x}"), channelIndex=1)
-             print("sent ok " + f"{i:06x}")
-             threading.Timer(10, timer, args=(interface, i, ready)).start()
+            interface.sendText(("ok " + f"{i:06x}"), channelIndex=1)
+            print("sent ok " + str(num))
+            threading.Timer(15, timer, args=(interface, num, ready)).start()
 
 
         
@@ -150,6 +158,7 @@ if isServer == True:
         global i
         global nodeID
         global numberOfPakets
+        global masterHash
         global file
         global filename
         global end
@@ -157,41 +166,49 @@ if isServer == True:
         length = 0
         check = b''
         payload = b''
+
         if (len(packet.get('decoded' , "")) > 0):
             if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
                 if packet['decoded']['payload'][0:3] == b'EOF':
                     end = True
                     file.close()
-                    print("done " + filename)
-                if packet['decoded']['payload'][0:6] == b'MeshTP':
+                    file = open(filename, "rb") # open the file
+                    
+                    print("done " + filename + " checksum: " + str(masterHash == hashlib.file_digest(file, "sha256").hexdigest()[:16]))
+                    file.close()
+                elif packet['decoded']['payload'][0:6] == b'MeshTP':
                     end = False
                     nodeID = packet['from']
-                    print(packet['decoded']['payload'][6:12])
                     numberOfPakets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
-                    masterHash = packet['decoded']['payload'][12:28]
+                    masterHash = packet['decoded']['payload'][12:28].decode('utf-8')
                     filename = packet['decoded']['payload'][28:].decode('utf-8')
-                    print(nodeID)
-                    print(numberOfPakets)
-                    print(masterHash)
-                    print(filename)
-                    print("\n\n")
+                    if debug:
+                        print(nodeID)
+                        print(numberOfPakets)
+                        print(masterHash)
+                        print(filename)
+                        print("\n")
                     file = open(filename, "wb")
-                    sendPacket(interface, ready=True)
+                    sendPacket(interface, i, ready=True)
 
                 elif packet['from'] == nodeID and len(packet['decoded']['payload']) >= 12 and packet.get('channel' , "") == 1 and not end:
                     packetnum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
                     length = int(packet['decoded']['payload'][6:8].decode('utf-8'), 16)
-                    check = packet['decoded']['payload'][8:12]
+                    check = packet['decoded']['payload'][8:12].decode('utf-8')
                     payload = packet['decoded']['payload'][12:length+12]
-                    print(str(packetnum) + " " + str(length) + " " + str(check))
-                    print(hashlib.sha256(payload.decode('utf-8').encode('utf-8')).hexdigest()[:4] == check.decode('utf-8'))
+                    if debug:
+                        print(str(packetnum) + " " + str(length) + " " + str(check))
+                    
                     i = packetnum
                     if i == 0:
-                        size = int(length/2)
+                        size = int(length)
                     file.seek(size * i)
-                    file.write(bytes.fromhex(payload.decode('utf-8')))
-                    sendPacket(interface)
-                    i+=1
+                    if debug:
+                        print("write packet " + str(i) + " at " + str(size * i))
+                    file.write(payload)
+                    if debug:
+                        print(file.tell())
+                    sendPacket(interface, i)
 
 
                 
@@ -211,7 +228,7 @@ if isServer == True:
 
     try:
         while True:
-            time.sleep(100)
+            time.sleep(0.1)
 
     except KeyboardInterrupt:
         close()
