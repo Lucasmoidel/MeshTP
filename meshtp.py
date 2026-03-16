@@ -9,9 +9,9 @@ import threading
 '''
 todo:
 
-1 add user defined serial device
-2 add user defined mesh device (hex or decimal) and remove man in the middle
-3 add -o output file for recive
+1 add user defined serial device ✅
+2 add user defined mesh device (hex or decimal) and remove man in the middle ✅
+3 add -o output file for recive ✅
 4 add progress bar
 5 compression???
 '''
@@ -23,7 +23,7 @@ def printHelpCommand(): # print help
     print(messigefile.read())
     messigefile.close()
 
-if len(sys.argv) < 3: # ensure correft number of args
+if len(sys.argv) < 2: # ensure correft number of args
     print("incorrect number of argument\n")
     printHelpCommand()
     sys.exit(1)
@@ -50,8 +50,12 @@ else: # inclorrect syntax and print help
 if isServer == False:
     done = False
     size = 210
+    nodeID = 0
     filename = sys.argv[2] # name of file
-    nodeID=818563225 # hex id of destination node
+    if (sys.argv[4][0] == "!"):
+        nodeID = int(sys.argv[4][1:],16)
+    else:
+        nodeID = int(sys.argv[4])
     numberOfPakets = math.ceil(os.path.getsize(filename) / size)
     print(str(numberOfPakets) + " packets")
     file = open(filename, "rb") # open the file
@@ -114,7 +118,7 @@ if isServer == False:
         sendPacket(interface, master=True)
     
 
-    interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyACM1')
+    interface = meshtastic.serial_interface.SerialInterface(devPath=sys.argv[3])
     pub.subscribe(onReceive, "meshtastic.receive")
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
@@ -135,6 +139,10 @@ if isServer == False:
 
 if isServer == True:
     filename  = "" # name of file
+    carg = False
+    if (sys.argv[3] == "-c"):
+        filename = sys.argv[4]
+        carg = True
     nodeID = ''
     numberOfPakets = 0
     file = 0
@@ -191,7 +199,8 @@ if isServer == True:
                     nodeID = packet['from']
                     numberOfPakets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
                     masterHash = packet['decoded']['payload'][12:28].decode('utf-8')
-                    filename = packet['decoded']['payload'][28:].decode('utf-8')
+                    if not carg:
+                        filename = packet['decoded']['payload'][28:].decode('utf-8')
                     if debug:
                         print(nodeID)
                         print(numberOfPakets)
@@ -231,7 +240,7 @@ if isServer == True:
         print("device connected")
     
 
-    interface = meshtastic.serial_interface.SerialInterface(devPath='/dev/ttyACM0')
+    interface = meshtastic.serial_interface.SerialInterface(devPath=sys.argv[2])
     pub.subscribe(onReceive, "meshtastic.receive")
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
