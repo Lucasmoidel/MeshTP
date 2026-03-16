@@ -6,6 +6,16 @@ import hashlib
 import time
 import threading
 
+'''
+todo:
+
+1 add user defined serial device
+2 add user defined mesh device (hex or decimal) and remove man in the middle
+3 add -o output file for recive
+4 add progress bar
+5 compression???
+'''
+
 debug = False
 
 def printHelpCommand(): # print help
@@ -60,7 +70,7 @@ if isServer == False:
             payload = b''
             file.seek(size*i)
             payload = file.read(size)
-            packet = b''.join((f"{i:06x}".encode('utf-8'), f"{len(payload):02x}".encode('utf-8'), "0000".encode('utf-8'), payload))
+            packet = b''.join((f"{i:06x}".encode('utf-8'), f"{len(payload):02x}".encode('utf-8'), hashlib.sha256(payload).hexdigest()[:4].encode('utf-8'), payload))
             interface.sendData(packet, channelIndex=1)
             packet = ''
             
@@ -196,9 +206,12 @@ if isServer == True:
                     length = int(packet['decoded']['payload'][6:8].decode('utf-8'), 16)
                     check = packet['decoded']['payload'][8:12].decode('utf-8')
                     payload = packet['decoded']['payload'][12:length+12]
+
+                    checksucceed = hashlib.sha256(payload).hexdigest()[:4] == check
                     if debug:
-                        print(str(packetnum) + " " + str(length) + " " + str(check))
-                    
+                        print(str(packetnum) + " " + str(length) + " " + str(check) + " " + str(checksucceed))
+                    if not checksucceed:
+                        sendPacket(interface, i)
                     i = packetnum
                     if i == 0:
                         size = int(length)
