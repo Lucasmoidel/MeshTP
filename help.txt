@@ -1,4 +1,4 @@
 MeshTP Version 0.1
 usage: meshtp send [filename] [serial device] [target node id (decimal or hex)] [option]
-       meshtp recive [serial device] [option]
+       meshtp receive [serial device] [option]
 --help : print this message

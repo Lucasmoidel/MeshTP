@@ -13,7 +13,7 @@ todo:
 1 add user defined serial device ✅
 2 add user defined mesh device (hex or decimal) and remove man in the middle ✅
 3 use DM instead of channel 
-4 add -o output file for recive ✅
+4 add -o output file for receive ✅
 5 add progress bar ✅
 6 compression???
 7 move to a new channel / freq to not interfere with regular traffic ??
@@ -42,11 +42,11 @@ for i in sys.argv: # check for --help
 
 
 isServer = False # set default server val
-sendOrRecive = sys.argv[1] # send or recive is set to arg 1
+sendOrReceive = sys.argv[1] # send or receive is set to arg 1
 
-if sendOrRecive == "send": # set isServer based on sendOrRecive
+if sendOrReceive == "send": # set isServer based on sendOrReceive
     isServer = False;
-elif sendOrRecive == "recive": # set isServer based on sendOrRecive
+elif sendOrReceive == "recive": # set isServer based on sendOrReceive
     isServer = True;
 else: # inclorrect syntax and print help
     print("incorrect program role\n")
