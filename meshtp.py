@@ -22,7 +22,7 @@ todo:
 
 '''
 
-debug = False
+debug = True
 
 def printHelpCommand(): # print help
     messigefile = open("help.txt", "r")
@@ -219,7 +219,7 @@ if isServer == True:
 
         if (len(packet.get('decoded' , "")) > 0):
             if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
-                if packet['decoded']['payload'][0:3] == b'EOF':
+                if packet['decoded']['payload'][0:3] == b'EOF' or i == numberOfPakets-1:
                     end = True
                     file.close()
                     file = open(filename, "rb") # open the file
