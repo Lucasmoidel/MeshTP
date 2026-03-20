@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 class sender:
     _interface = 0
-
+    _targetnode: int = 0
     _filename: str = ""
     _file = 0
     _filesize: int = 0
@@ -21,25 +21,53 @@ class sender:
 
     _done: bool = False
 
-    def __init__(self, interface, filename: str, size=200):
+    _setlen: int = 2
+    _set = []
+    _currentset: int = -1
+    _lastset: bool = False
+    def __init__(self, interface, filename: str, targetnode: str, size=200):
         self._interface = interface
+
         if (type(filename) != str):
             raise ValueError("filename wrong type")
+        
         self._file = open(filename, 'rb')
         if (type(size) != int):
             raise ValueError("size wrong type")
+        
+        if (type(targetnode) != str):
+            raise ValueError("targetnode wrong type")
+        
+        if (targetnode[0] != "!"):
+            self._targetnode = int(targetnode)
+
         self._size = size
         self._filename = filename
         self._filesize = os.path.getsize(self._filename)
         self._numberOfPakets = math.ceil(os.path.getsize(self._filename) / self._size)
         self._lastpacketsize = os.path.getsize(self._filename)%self._size
         self._masterHash = hashlib.file_digest(self._file, "sha256").hexdigest()[:16]
+        
+        self._nextset()
         pub.subscribe(self._onReceive, "meshtastic.receive")
         pub.subscribe(self._onConnection, "meshtastic.connection.established")
         while not self._done:
             time.sleep(1)
+        self._file.close()
+        self._interface.close()
+        return True
 
+    def _nextset(self):
+        self._currentset+=1
+        self._set = []
+        if not self._lastset:
+            for i in range((self._currentset*self._setlen), (self._currentset*self._setlen)+self._setlen):
+                self._set.append(i)
+                if i == self._numberOfPakets-1:
+                    self._lastset = True
+                    break
 
+        
     def _sendpacket(self, interface, i: int):
         if (type(i) != int):
             raise ValueError("i wrong type")
@@ -53,7 +81,11 @@ class sender:
             interface.sendData(packet, channelIndex=1)
 
     def _onReceive(self, packet, interface):
-        pass
+        if packet['from'] == self._targetnode or packet['from'] == 1128063444:
+            if packet['decoded']['payload'] == b'ok master':
+                for i in range(5):
+                    print(self._set)
+                    self._nextset()
 
 
     def _onConnection(self, interface, topic=pub.AUTO_TOPIC):
