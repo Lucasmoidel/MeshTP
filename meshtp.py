@@ -119,6 +119,9 @@ if isServer == False:
             if packet['decoded']['payload'] == b'ok master':
                 start = True
                 sendPacket(interface)
+            elif packet['decoded']['payload'] == b'ok EOF' and start:
+                pbar.update(lastpacketsize)
+                close()
             elif packet['decoded']['payload'][0:2] == b'ok' and start:
                 i = int(packet['decoded']['payload'][3:].decode('utf-8'), 16)+1
                 
@@ -130,9 +133,8 @@ if isServer == False:
                         barloc = i
                     sendPacket(interface)
                 else:
-                    pbar.update(lastpacketsize)
                     sendPacket(interface, True)
-                    close()
+
         
     def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect to the radio
         print("device connected")
@@ -178,24 +180,29 @@ if isServer == True:
     lastpacketsize = 0
     filesize = 0
     lastpacket = -1
-    def timer(interface, packetnum, ready):
+    def timer(interface, packetnum, ready, eof):
         if (i == packetnum and not end):
             if debug:
                 print("retry !!!!!!!!!!!!!!!! " + str(i) + " " + str(packetnum))
 
-            sendPacket(interface, packetnum, ready)
+            sendPacket(interface, packetnum, ready, eof)
 
-    def sendPacket(interface, num, ready=False):
+    def sendPacket(interface, num, ready=False, eof=False):
         if ready == True:
             interface.sendText("ok master", channelIndex=1)
             if debug:
                 print("sent ok master")
-            threading.Timer(15, timer, args=(interface, num, ready)).start()
+            threading.Timer(15, timer, args=(interface, num, ready, eof)).start()
+        if eof == True:
+            interface.sendText("ok EOF", channelIndex=1)
+            if debug:
+                print("sent ok EOF")
+            threading.Timer(15, timer, args=(interface, num, ready, eof)).start()
         else:
             interface.sendText(("ok " + f"{i:06x}"), channelIndex=1)
             if debug:
                 print("sent ok " + str(num))
-            threading.Timer(15, timer, args=(interface, num, ready)).start()
+            threading.Timer(15, timer, args=(interface, num, ready, eof)).start()
 
 
         
@@ -219,7 +226,7 @@ if isServer == True:
 
         if (len(packet.get('decoded' , "")) > 0):
             if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
-                if packet['decoded']['payload'][0:3] == b'EOF' or i == numberOfPakets-1:
+                if packet['decoded']['payload'][0:3] == b'EOF':
                     end = True
                     file.close()
                     file = open(filename, "rb") # open the file
@@ -262,12 +269,14 @@ if isServer == True:
                     if debug:
                         print("write packet " + str(i) + " at " + str(size * i))
                     file.write(payload)
+                    file.flush()
                     if debug:
                         print(file.tell())
                     if lastpacket < i:
                         pbar.update(len(payload))
                     lastpacket = i
                     sendPacket(interface, i)
+
 
 
                 
