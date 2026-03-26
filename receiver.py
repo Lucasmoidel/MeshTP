@@ -15,6 +15,8 @@ class receiver:
     _interface = 0
     _targetnode: int = 0
 
+    _end = False
+     
     _updatefunc = 0
 
     _filename: str = ""
@@ -33,7 +35,7 @@ class receiver:
         self._updatefunc = updatefunc
         self._filename = filename
     
-    def _sendpacket(self, i):
+    def _sendPacket(self, i):
         if i < 0:
             self._interface.sendText("ok master", channelIndex=1)
         else: 
@@ -46,8 +48,8 @@ class receiver:
         if (len(packet.get('decoded' , "")) > 0):
             if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
                 if packet['decoded']['payload'][0:6] == b'MeshTP':
-                    end = False
-                    nodeID = packet['from']
+                    self._end = False
+                    self._nodeID = packet['from']
                     self._numberOfPakets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
                     self._size = int(packet['decoded']['payload'][12:14].decode('utf-8'), 16)
                     self._lastpacketsize = int(packet['decoded']['payload'][14:16].decode('utf-8'), 16)
@@ -55,7 +57,7 @@ class receiver:
                     if len(self._filename) == 0:
                         filename = packet['decoded']['payload'][32:].decode('utf-8')
                     if self._debug:
-                        print(nodeID)
+                        print(self._nodeID)
                         print(self._numberOfPakets)
                         print(self._masterHash)
                         print(self._filename)
@@ -63,14 +65,13 @@ class receiver:
                     self._file = open(filename, "wb")
                     self._sendPacket(interface, -1)
 
-                elif packet['from'] == nodeID and len(packet['decoded']['payload']) >= 12 and not end:
+                elif packet['from'] == self._nodeID and len(packet['decoded']['payload']) >= 12 and not self._end:
                     packetnum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
                     check = packet['decoded']['payload'][6:10].decode('utf-8')
                     payload = packet['decoded']['payload'][10:]
 
                     checksucceed = hashlib.sha256(payload).hexdigest()[:4] == check
                     if checksucceed:
-                        
                         self._file.seek(self._size * packetnum)
                         self._file.write(payload)
                         self._file.flush()

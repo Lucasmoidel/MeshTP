@@ -88,22 +88,22 @@ class sender:
                     break
 
         
-    def _sendpacket(self, interface, i: int):
+    def _sendpacket(self, i: int):
         if (type(i) != int):
             raise ValueError("i wrong type")
         if i == -1:
             packet = ''.join((f"MeshTP",f"{self._numberOfPakets:06x}", f"{self._size:02x}", f"{self._lastpacketsize:02x}", self._masterHash, self._filename.split("/")[-1]))
-            interface.sendText(packet, channelIndex=1)
+            self._interface.sendText(packet, channelIndex=1)
         else:
             print("sending " + str(i))
             self._file.seek(self._size*i)
             payload = self._file.read(self._size)
             packet = b''.join((f"{i:06x}".encode('utf-8'), hashlib.sha256(payload).hexdigest()[:4].encode('utf-8'), payload))
-            interface.sendData(packet, channelIndex=1)
+            self._interface.sendData(packet, channelIndex=1)
     
-    def _sendset(self, interface):
+    def _sendset(self):
         for i in self._set:
-            self._sendpacket(interface, i)
+            self._sendpacket(i)
 
     def _onReceive(self, packet, interface):
         if packet['from'] == self._targetnode or packet['from'] == 1128063444:
@@ -127,4 +127,4 @@ class sender:
 
     def _onConnection(self, interface, topic=pub.AUTO_TOPIC):
         print("connected to device \"" + interface.getLongName() + "\"")
-        self._sendpacket(interface, -1)
+        self._sendpacket(-1)
