@@ -92,7 +92,7 @@ if isServer == False:
             if debug:
                 print("sent packet " + str(i))
         if master:
-            packet = ''.join((f"MeshTP",f"{numberOfPakets:06x}", f"{size:02x}", f"{lastpacketsize:02x}", masterHash, filename))
+            packet = ''.join((f"MeshTP",f"{numberOfPakets:06x}", f"{size:02x}", f"{lastpacketsize:02x}", masterHash, filename.split("/")[-1]))
             
             if debug:
                 print (masterHash)
