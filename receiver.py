@@ -54,15 +54,15 @@ class receiver:
     
     def _sendPacket(self, i):
         if i == -1:
-            self._interface.sendText("ok master", destinationId=self._targetnode, wantAck=True)
+            self._interface.sendText("ok master", channelIndex=1, wantAck=True)
             if self._debug:
                 print("sent ok master")
         elif i == -2:
-            self._interface.sendText("ok EOF", destinationId=self._targetnode, wantAck=True)
+            self._interface.sendText("ok EOF", channelIndex=1, wantAck=True)
             if self._debug:
                 print("sent ok EOF")
         else: 
-            #self._interface.sendText(("ok " + f"{i:06x}"), destinationId=self._targetnode, wantAck=True)
+            self._interface.sendText(("ok " + f"{i:06x}"), channelIndex=1, wantAck=True)
             if self._debug:
                 print("sent ok " + f"{i:06x}")
             #time.sleep(2)
@@ -70,7 +70,6 @@ class receiver:
     def _onReceive(self, packet, interface):
         check = b''
         payload = b''
-        
         if (len(packet.get('decoded' , "")) > 0):
             if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
                 if packet['decoded']['payload'][0:6] == b'EOF':
@@ -109,7 +108,7 @@ class receiver:
                         self._file.write(payload)
                         self._file.flush()
                         print(packetnum)
-                        #self._sendPacket(packetnum)
+                        self._sendPacket(packetnum)
                     print(str(os.path.getsize(self._filename)) + " " + str(self._filesize))
 
     def _onConnection(self, interface, topic=pub.AUTO_TOPIC):
