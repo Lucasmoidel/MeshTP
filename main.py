@@ -22,25 +22,26 @@ for i in sys.argv: # check for --help
 
 sendOrReceive = sys.argv[1] # send or receive is set to arg 1
 
+bar = 0
+
+
+def update(current, new, max, done=False):
+    global bar
+    if done:
+        bar.close()
+    if current == new:
+        bar = tqdm(total=max, unit=" bytes", smoothing=1.0, leave=False)
+    if current>=new:
+        bar.update(new)
+        bar.refresh()
+
 if sendOrReceive == "send":
     if len(sys.argv) < 5: # ensure correft number of args
         print("incorrect number of argument\n")
         printHelpCommand()
         sys.exit(1)
 
-
-    bar = 0
-    def update(current, new, max):
-        global bar
-        if current == new:
-            bar = tqdm(total=max, unit=" bytes", smoothing=1.0, leave=False)
-        if current>=new:
-            bar.update(new)
-            bar.refresh()
     interface = meshtastic.serial_interface.SerialInterface(sys.argv[3])
-    # pub.subscribe(onReceive, "meshtastic.receive")
-    # pub.subscribe(onConnection, "meshtastic.connection.established")
-
     send = sender(interface, sys.argv[2], sys.argv[4], update)
     send.start()
     bar.close()
@@ -51,22 +52,7 @@ elif sendOrReceive == "receive":
         printHelpCommand()
         sys.exit(1)
 
-    bar = 0
-    def update(current, new, max):
-        print(current)
-        print(new)
-        print(max)
-        global bar
-        if current == new:
-            bar = tqdm(total=max, unit=" bytes", smoothing=1.0, leave=False)
-        if current>=new:
-            bar.update(new)
-            bar.refresh()
-
     interface = meshtastic.serial_interface.SerialInterface(sys.argv[2])
-    # pub.subscribe(onReceive, "meshtastic.receive")
-    # pub.subscribe(onConnection, "meshtastic.connection.established")
-
     receive = receiver(interface, update)
     receive.start()
     bar.close()

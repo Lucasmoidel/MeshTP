@@ -105,12 +105,14 @@ class sender:
                 if self._debug:
                     print("got ok master")
                 self._sendpacket(0)
+                self._updatefunc(0, 0, self._filesize)      
 
             elif packet['decoded']['payload'] == b'ok EOF':
+                self._updatefunc(self._filesize, 0, self._filesize, True)
                 self._done = True;
                 if self._debug:
                     print("got ok EOF")
-
+                    
             elif packet['decoded']['payload'][0:2] == b'ok' and self._start:
                 i = int(packet['decoded']['payload'][3:].decode('utf-8'), 16)
             

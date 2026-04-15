@@ -11,7 +11,7 @@ TODO:
 '''
 
 class receiver:
-    _debug = True
+    _debug = False
     _interface = 0
     _targetnode: int = 0
 
@@ -29,6 +29,8 @@ class receiver:
     _packetssent: int = 0;
 
     _masterHash = 0
+
+    _current = -1
 
     def __init__(self, interface, updatefunc, filename=""):
         self._interface = interface
@@ -61,6 +63,7 @@ class receiver:
             self._interface.sendText("ok EOF", channelIndex=1, wantAck=True)
             if self._debug:
                 print("sent ok EOF")
+            self._updatefunc(self._filesize, 0, self._filesize, True)
         else: 
             self._interface.sendText(("ok " + f"{i:06x}"), channelIndex=1, wantAck=True)
             if self._debug:
@@ -95,10 +98,12 @@ class receiver:
 
                     self._file = open(self._filename, "wb")
                     self._sendPacket(-1)
+                    self._updatefunc(0, 0, self._filesize) 
 
                 elif packet['from'] == self._targetnode and len(packet['decoded']['payload']) >= 12 and not self._done:
                     packetnum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
-                    print(packet['decoded']['payload'][0:6].decode('utf-8'))
+                    if self._debug:
+                        print(packet['decoded']['payload'][0:6].decode('utf-8'))
                     check = packet['decoded']['payload'][6:10].decode('utf-8')
                     payload = packet['decoded']['payload'][10:]
 
@@ -107,9 +112,21 @@ class receiver:
                         self._file.seek(self._size * packetnum)
                         self._file.write(payload)
                         self._file.flush()
-                        print(packetnum)
+                        if self._debug:
+                            print(packetnum)
                         self._sendPacket(packetnum)
-                    print(str(os.path.getsize(self._filename)) + " " + str(self._filesize))
+                        flag = True
+                        if packetnum > self._current:
+                            self._current = packetnum
+                        else:
+                            flag = False
+                        if flag:
+                            if (packetnum == self._numberOfPakets-1):
+                                self._updatefunc(self._filesize, self._lastpacketsize, self._filesize)
+                            else:
+                                self._updatefunc(((self._current+1)*self._size), self._size, self._filesize)
+                    if self._debug:
+                        print(str(os.path.getsize(self._filename)) + " " + str(self._filesize))
 
     def _onConnection(self, interface, topic=pub.AUTO_TOPIC):
         print("connected to device \"" + interface.getLongName() + "\"")
