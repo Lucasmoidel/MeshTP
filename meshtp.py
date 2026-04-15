@@ -17,7 +17,7 @@ todo:
 5 add progress bar ✅
 6 compression???
 7 move to a new channel / freq to not interfere with regular traffic ??
-8 impliment device discovery https://github.com/meshtastic/python/blob/master/examples/scan_for_devices.py
+8 implement device discovery https://github.com/meshtastic/python/blob/master/examples/scan_for_devices.py
 9 add length check on input file name
 
 '''
@@ -25,11 +25,11 @@ todo:
 debug = True
 
 def printHelpCommand(): # print help
-    messigefile = open("help.txt", "r")
-    print(messigefile.read())
-    messigefile.close()
+    missingFile = open("help.txt", "r")
+    print(missingFile.read())
+    missingFile.close()
 
-if len(sys.argv) < 2: # ensure correft number of args
+if len(sys.argv) < 2: # ensure correct number of args
     print("incorrect number of argument\n")
     printHelpCommand()
     sys.exit(1)
@@ -46,9 +46,9 @@ sendOrReceive = sys.argv[1] # send or receive is set to arg 1
 
 if sendOrReceive == "send": # set isServer based on sendOrReceive
     isServer = False;
-elif sendOrReceive == "recive": # set isServer based on sendOrReceive
+elif sendOrReceive == "receive": # set isServer based on sendOrReceive
     isServer = True;
-else: # inclorrect syntax and print help
+else: # incorrect syntax and print help
     print("incorrect program role\n")
     printHelpCommand() # explain the command line options
     sys.exit(1)
@@ -62,13 +62,13 @@ if isServer == False:
         nodeID = int(sys.argv[4][1:],16)
     else:
         nodeID = int(sys.argv[4])
-    numberOfPakets = math.ceil(os.path.getsize(filename) / size)
-    print(str(numberOfPakets) + " packets")
+    numberOfPackets = math.ceil(os.path.getsize(filename) / size)
+    print(str(numberOfPackets) + " packets")
     file = open(filename, "rb") # open the file
     masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
-    lastpacketsize = os.path.getsize(filename)%size
+    lastPacketSize = os.path.getsize(filename)%size
 
-    if numberOfPakets > 16777215: # make sure the number of packets can be represented with 6 bytes of hex
+    if numberOfPackets > 16777215: # make sure the number of packets can be represented with 6 bytes of hex
         file.close() # close the new file
         print("file is to large")
         printHelpCommand()
@@ -92,11 +92,11 @@ if isServer == False:
             if debug:
                 print("sent packet " + str(i))
         if master:
-            packet = ''.join((f"MeshTP",f"{numberOfPakets:06x}", f"{size:02x}", f"{lastpacketsize:02x}", masterHash, filename.split("/")[-1]))
+            packet = ''.join((f"MeshTP",f"{numberOfPackets:06x}", f"{size:02x}", f"{lastPacketSize:02x}", masterHash, filename.split("/")[-1]))
             
             if debug:
                 print (masterHash)
-                print(f"{numberOfPakets:06x}")
+                print(f"{numberOfPackets:06x}")
                 
             interface.sendText(packet, channelIndex=1)
             packet = ''
@@ -120,14 +120,14 @@ if isServer == False:
                 start = True
                 sendPacket(interface)
             elif packet['decoded']['payload'] == b'ok EOF' and start:
-                pbar.update(lastpacketsize)
+                pbar.update(lastPacketSize)
                 close()
             elif packet['decoded']['payload'][0:2] == b'ok' and start:
                 i = int(packet['decoded']['payload'][3:].decode('utf-8'), 16)+1
                 
                 if debug:
                     print("got ok " + str(i-1))
-                if(i < numberOfPakets):
+                if(i < numberOfPackets):
                     if i != barloc:
                         pbar.update(size)
                         barloc = i
@@ -170,22 +170,22 @@ if isServer == True:
         filename = sys.argv[4]
         carg = True
     nodeID = ''
-    numberOfPakets = 0
+    numberOfPackets = 0
     file = 0
     end = False
     size = 0
     masterHash = ''
     pbar = 0
     i = 0;
-    lastpacketsize = 0
+    lastPacketSize = 0
     filesize = 0
-    lastpacket = -1
-    def timer(interface, packetnum, ready, eof):
-        if (i == packetnum and not end):
+    lastPacket = -1
+    def timer(interface, packetNum, ready, eof):
+        if (i == packetNum and not end):
             if debug:
-                print("retry !!!!!!!!!!!!!!!! " + str(i) + " " + str(packetnum))
+                print("retry !!!!!!!!!!!!!!!! " + str(i) + " " + str(packetNum))
 
-            sendPacket(interface, packetnum, ready, eof)
+            sendPacket(interface, packetNum, ready, eof)
 
     def sendPacket(interface, num, ready=False, eof=False):
         if ready == True:
@@ -210,16 +210,16 @@ if isServer == True:
     def onReceive(packet, interface):
         global i
         global nodeID
-        global numberOfPakets
+        global numberOfPackets
         global masterHash
         global file
         global filename
         global end
         global size
         global pbar
-        global lastpacketsize
+        global lastPacketSize
         global filesize
-        global lastpacket
+        global lastPacket
         length = 0
         check = b''
         payload = b''
@@ -238,33 +238,33 @@ if isServer == True:
                 elif packet['decoded']['payload'][0:6] == b'MeshTP':
                     end = False
                     nodeID = packet['from']
-                    numberOfPakets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
+                    numberOfPackets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
                     size = int(packet['decoded']['payload'][12:14].decode('utf-8'), 16)
-                    lastpacketsize = int(packet['decoded']['payload'][14:16].decode('utf-8'), 16)
+                    lastPacketSize = int(packet['decoded']['payload'][14:16].decode('utf-8'), 16)
                     masterHash = packet['decoded']['payload'][16:32].decode('utf-8')
                     if not carg:
                         filename = packet['decoded']['payload'][32:].decode('utf-8')
                     if debug:
                         print(nodeID)
-                        print(numberOfPakets)
+                        print(numberOfPackets)
                         print(masterHash)
                         print(filename)
                         print("\n")
                     file = open(filename, "wb")
-                    pbar = tqdm(total=(size*(numberOfPakets-1)+lastpacketsize), unit=" bytes", smoothing=1.0, leave=False)
+                    pbar = tqdm(total=(size*(numberOfPackets-1)+lastPacketSize), unit=" bytes", smoothing=1.0, leave=False)
                     sendPacket(interface, i, ready=True)
 
                 elif packet['from'] == nodeID and len(packet['decoded']['payload']) >= 12 and not end:
-                    packetnum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
+                    packetNum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
                     check = packet['decoded']['payload'][6:10].decode('utf-8')
                     payload = packet['decoded']['payload'][10:]
 
-                    checksucceed = hashlib.sha256(payload).hexdigest()[:4] == check
+                    checkSucceed = hashlib.sha256(payload).hexdigest()[:4] == check
                     if debug:
-                        print(str(packetnum) + " " + str(length) + " " + str(check) + " " + str(checksucceed))
-                    if not checksucceed:
+                        print(str(packetNum) + " " + str(length) + " " + str(check) + " " + str(checkSucceed))
+                    if not checkSucceed:
                         sendPacket(interface, i)
-                    i = packetnum
+                    i = packetNum
                     file.seek(size * i)
                     if debug:
                         print("write packet " + str(i) + " at " + str(size * i))
@@ -272,9 +272,9 @@ if isServer == True:
                     file.flush()
                     if debug:
                         print(file.tell())
-                    if lastpacket < i:
+                    if lastPacket < i:
                         pbar.update(len(payload))
-                    lastpacket = i
+                    lastPacket = i
                     sendPacket(interface, i)
 
 

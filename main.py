@@ -28,17 +28,22 @@ if sendOrReceive == "send":
         printHelpCommand()
         sys.exit(1)
 
-    def update(current, new, max):
-        print(current)
-        print(new)
-        print(max)
 
+    bar = 0
+    def update(current, new, max):
+        global bar
+        if current == new:
+            bar = tqdm(total=max, unit=" bytes", smoothing=1.0, leave=False)
+        if current>=new:
+            bar.update(new)
+            bar.refresh()
     interface = meshtastic.serial_interface.SerialInterface(sys.argv[3])
     # pub.subscribe(onReceive, "meshtastic.receive")
     # pub.subscribe(onConnection, "meshtastic.connection.established")
 
     send = sender(interface, sys.argv[2], sys.argv[4], update)
     send.start()
+    bar.close()
 
 elif sendOrReceive == "receive":
     if len(sys.argv) < 3: # ensure correft number of args
@@ -46,10 +51,17 @@ elif sendOrReceive == "receive":
         printHelpCommand()
         sys.exit(1)
 
+    bar = 0
     def update(current, new, max):
         print(current)
         print(new)
         print(max)
+        global bar
+        if current == new:
+            bar = tqdm(total=max, unit=" bytes", smoothing=1.0, leave=False)
+        if current>=new:
+            bar.update(new)
+            bar.refresh()
 
     interface = meshtastic.serial_interface.SerialInterface(sys.argv[2])
     # pub.subscribe(onReceive, "meshtastic.receive")
@@ -57,6 +69,7 @@ elif sendOrReceive == "receive":
 
     receive = receiver(interface, update)
     receive.start()
+    bar.close()
 
 else: # inclorrect syntax and print help
     print("incorrect program role\n")

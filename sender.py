@@ -11,6 +11,9 @@ TODO: things
 '''
 
 class sender:
+
+    _debug = False
+
     _interface = 0
     _targetnode: int = 0
 
@@ -71,7 +74,9 @@ class sender:
         self._interface.close()
         return True
 
-
+    def _timer(self, i, old):
+        if self._current == old:
+            self._sendpacket(i)
         
     def _sendpacket(self, i: int):
         if (type(i) != int):
@@ -82,38 +87,50 @@ class sender:
 
         elif i == -2:
             self._currentId = self._interface.sendText("EOF", channelIndex=1, wantAck=True).id
-            print("sending EOF")
+            if self._debug:
+                print("sending EOF")
         else:
-            print("sending " + str(i))
+            if self._debug:
+                print("sending " + str(i))
             self._file.seek(self._size*i)
             payload = self._file.read(self._size)
             packet = b''.join((f"{i:06x}".encode('utf-8'), hashlib.sha256(payload).hexdigest()[:4].encode('utf-8'), payload))
-            self._interface.sendData(packet, channelIndex=1, wantAck=True)
+            self._interface.sendData(packet, channelIndex=1)
+            t = threading.Timer(5, self._timer, args=[i, self._current]).start()
 
     def _onReceive(self, packet, interface):
         if packet['from'] == self._targetnode or packet['from'] == 1128063444:
             if packet['decoded']['payload'] == b'ok master':
                 self._start = True
-                print("got ok master")
+                if self._debug:
+                    print("got ok master")
                 self._sendpacket(0)
 
             elif packet['decoded']['payload'] == b'ok EOF':
                 self._done = True;
-                print("got ok EOF")
+                if self._debug:
+                    print("got ok EOF")
 
             elif packet['decoded']['payload'][0:2] == b'ok' and self._start:
                 i = int(packet['decoded']['payload'][3:].decode('utf-8'), 16)
             
-                print("got ok " + str(i))
+                if self._debug:
+                    print("got ok " + str(i))
 
-                if i >= self._received:
-                    
-
+                flag = True
+                if i > self._current:
+                    self._current = i
+                else:
+                    flag = False
 
                 if (i == self._numberOfPakets-1):
                     self._sendpacket(-2)
+                    self._updatefunc(self._filesize, self._lastpacketsize, self._filesize)
                 else:
                     self._sendpacket(i+1)
+                    if flag:
+                        self._updatefunc(((self._current+1)*self._size), self._size, self._filesize)
+
                 
 
 
