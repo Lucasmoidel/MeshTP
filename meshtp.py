@@ -1,4 +1,6 @@
 #!/usr/bin/python
+from sender import sender
+from receiver import receiver
 import time, os, meshtastic.serial_interface, meshtastic, math
 from pubsub import pub
 import sys
@@ -7,297 +9,56 @@ import time
 import threading
 from tqdm import tqdm
 
-'''
-todo:
-
-1 add user defined serial device ✅
-2 add user defined mesh device (hex or decimal) and remove man in the middle ✅
-3 use DM instead of channel 
-4 add -o output file for receive ✅
-5 add progress bar ✅
-6 compression???
-7 move to a new channel / freq to not interfere with regular traffic ??
-8 implement device discovery https://github.com/meshtastic/python/blob/master/examples/scan_for_devices.py
-9 add length check on input file name
-
-'''
-
-debug = True
 
 def printHelpCommand(): # print help
-    missingFile = open("help.txt", "r")
-    print(missingFile.read())
-    missingFile.close()
-
-if len(sys.argv) < 2: # ensure correct number of args
-    print("incorrect number of argument\n")
-    printHelpCommand()
-    sys.exit(1)
+    messigefile = open("help.txt", "r")
+    print(messigefile.read())
+    messigefile.close()
 
 for i in sys.argv: # check for --help
     if i == "--help":
         printHelpCommand() # explain the command line options
         sys.exit(1)
 
-
-
-isServer = False # set default server val
 sendOrReceive = sys.argv[1] # send or receive is set to arg 1
 
-if sendOrReceive == "send": # set isServer based on sendOrReceive
-    isServer = False;
-elif sendOrReceive == "receive": # set isServer based on sendOrReceive
-    isServer = True;
-else: # incorrect syntax and print help
+bar = 0
+
+
+def update(current, new, max, done=False):
+    global bar
+    if done:
+        bar.close()
+        print()
+    if current == new:
+        bar = tqdm(total=max, unit=" bytes", smoothing=1.0, leave=False)
+    if current>=new:
+        bar.update(new)
+        bar.refresh()
+
+if sendOrReceive == "send":
+    if len(sys.argv) < 5: # ensure correft number of args
+        print("incorrect number of argument\n")
+        printHelpCommand()
+        sys.exit(1)
+
+    interface = meshtastic.serial_interface.SerialInterface(sys.argv[3])
+    send = sender(interface, sys.argv[2], sys.argv[4], update)
+    send.start()
+    bar.close()
+
+elif sendOrReceive == "receive":
+    if len(sys.argv) < 3: # ensure correft number of args
+        print("incorrect number of argument\n")
+        printHelpCommand()
+        sys.exit(1)
+
+    interface = meshtastic.serial_interface.SerialInterface(sys.argv[2])
+    receive = receiver(interface, update)
+    receive.start()
+    bar.close()
+
+else: # inclorrect syntax and print help
     print("incorrect program role\n")
     printHelpCommand() # explain the command line options
     sys.exit(1)
-
-if isServer == False:
-    done = False
-    size = 212
-    nodeID = 0
-    filename = sys.argv[2] # name of file
-    if (sys.argv[4][0] == "!"):
-        nodeID = int(sys.argv[4][1:],16)
-    else:
-        nodeID = int(sys.argv[4])
-    numberOfPackets = math.ceil(os.path.getsize(filename) / size)
-    print(str(numberOfPackets) + " packets")
-    file = open(filename, "rb") # open the file
-    masterHash = hashlib.file_digest(file, "sha256").hexdigest()[:16] #crate the hash of the original file
-    lastPacketSize = os.path.getsize(filename)%size
-
-    if numberOfPackets > 16777215: # make sure the number of packets can be represented with 6 bytes of hex
-        file.close() # close the new file
-        print("file is to large")
-        printHelpCommand()
-        sys.exit(1)
-    file.seek(0)
-    i = 0;
-    start = False
-    pbar = tqdm(total=os.path.getsize(filename), unit=" bytes", smoothing=1.0, leave=False)
-    barloc = 0
-    def sendPacket(interface, eof=False, master=False):
-        global pbar
-        if not eof and not master:
-                #packet, hexbytes = ''
-            
-            payload = b''
-            file.seek(size*i)
-            payload = file.read(size)
-            packet = b''.join((f"{i:06x}".encode('utf-8'), hashlib.sha256(payload).hexdigest()[:4].encode('utf-8'), payload))
-            interface.sendData(packet, channelIndex=1)
-            packet = ''
-            if debug:
-                print("sent packet " + str(i))
-        if master:
-            packet = ''.join((f"MeshTP",f"{numberOfPackets:06x}", f"{size:02x}", f"{lastPacketSize:02x}", masterHash, filename.split("/")[-1]))
-            
-            if debug:
-                print (masterHash)
-                print(f"{numberOfPackets:06x}")
-                
-            interface.sendText(packet, channelIndex=1)
-            packet = ''
-            if debug:
-                print("sent master packet ")
-
-        if eof:
-            interface.sendText("EOF", channelIndex=1)
-            if debug:
-                print("sent EOF packet")
-
-        
-
-    def onReceive(packet, interface):
-        global i
-        global start
-        global barloc
-        global pbar
-        if packet['from'] == nodeID or packet['from'] == 1128063444:
-            if packet['decoded']['payload'] == b'ok master':
-                start = True
-                sendPacket(interface)
-            elif packet['decoded']['payload'] == b'ok EOF' and start:
-                pbar.update(lastPacketSize)
-                close()
-            elif packet['decoded']['payload'][0:2] == b'ok' and start:
-                i = int(packet['decoded']['payload'][3:].decode('utf-8'), 16)+1
-                
-                if debug:
-                    print("got ok " + str(i-1))
-                if(i < numberOfPackets):
-                    if i != barloc:
-                        pbar.update(size)
-                        barloc = i
-                    sendPacket(interface)
-                else:
-                    sendPacket(interface, True)
-
-        
-    def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect to the radio
-        print("device connected")
-        sendPacket(interface, master=True)
-    
-
-    interface = meshtastic.serial_interface.SerialInterface(devPath=sys.argv[3])
-    pub.subscribe(onReceive, "meshtastic.receive")
-    pub.subscribe(onConnection, "meshtastic.connection.established")
-
-    def close():
-        global done
-        print("Disconnecting...")
-        file.close() # close the new file
-        interface.close()
-        done = True
-    try:
-        while True:
-            time.sleep(0.01)
-            if type(pbar) != int:
-                pbar.refresh()
-            if done:
-                pbar.close()
-                sys.exit(0)
-    except KeyboardInterrupt:
-        close()
-
-
-if isServer == True:
-    filename  = "" # name of file
-    carg = False
-    if (len(sys.argv) > 3 and sys.argv[3] == "-o"):
-        filename = sys.argv[4]
-        carg = True
-    nodeID = ''
-    numberOfPackets = 0
-    file = 0
-    end = False
-    size = 0
-    masterHash = ''
-    pbar = 0
-    i = 0;
-    lastPacketSize = 0
-    filesize = 0
-    lastPacket = -1
-    def timer(interface, packetNum, ready, eof):
-        if (i == packetNum and not end):
-            if debug:
-                print("retry !!!!!!!!!!!!!!!! " + str(i) + " " + str(packetNum))
-
-            sendPacket(interface, packetNum, ready, eof)
-
-    def sendPacket(interface, num, ready=False, eof=False):
-        if ready == True:
-            interface.sendText("ok master", channelIndex=1)
-            if debug:
-                print("sent ok master")
-            threading.Timer(15, timer, args=(interface, num, ready, eof)).start()
-        if eof == True:
-            interface.sendText("ok EOF", channelIndex=1)
-            if debug:
-                print("sent ok EOF")
-            threading.Timer(15, timer, args=(interface, num, ready, eof)).start()
-        else:
-            interface.sendText(("ok " + f"{i:06x}"), channelIndex=1)
-            if debug:
-                print("sent ok " + str(num))
-            threading.Timer(15, timer, args=(interface, num, ready, eof)).start()
-
-
-        
-
-    def onReceive(packet, interface):
-        global i
-        global nodeID
-        global numberOfPackets
-        global masterHash
-        global file
-        global filename
-        global end
-        global size
-        global pbar
-        global lastPacketSize
-        global filesize
-        global lastPacket
-        length = 0
-        check = b''
-        payload = b''
-
-        if (len(packet.get('decoded' , "")) > 0):
-            if (len(packet['decoded'].get('payload' , "")) > 0) and packet['decoded']['payload'][0:2] != b'\r':
-                if packet['decoded']['payload'][0:3] == b'EOF':
-                    end = True
-                    file.close()
-                    file = open(filename, "rb") # open the file
-                    
-                    print("done " + filename + " checksum: " + str(masterHash == hashlib.file_digest(file, "sha256").hexdigest()[:16]))
-                    file.close()
-                    pbar.close()
-                    pbar = 0
-                elif packet['decoded']['payload'][0:6] == b'MeshTP':
-                    end = False
-                    nodeID = packet['from']
-                    numberOfPackets = int(packet['decoded']['payload'][6:12].decode('utf-8'), 16)
-                    size = int(packet['decoded']['payload'][12:14].decode('utf-8'), 16)
-                    lastPacketSize = int(packet['decoded']['payload'][14:16].decode('utf-8'), 16)
-                    masterHash = packet['decoded']['payload'][16:32].decode('utf-8')
-                    if not carg:
-                        filename = packet['decoded']['payload'][32:].decode('utf-8')
-                    if debug:
-                        print(nodeID)
-                        print(numberOfPackets)
-                        print(masterHash)
-                        print(filename)
-                        print("\n")
-                    file = open(filename, "wb")
-                    pbar = tqdm(total=(size*(numberOfPackets-1)+lastPacketSize), unit=" bytes", smoothing=1.0, leave=False)
-                    sendPacket(interface, i, ready=True)
-
-                elif packet['from'] == nodeID and len(packet['decoded']['payload']) >= 12 and not end:
-                    packetNum = int(packet['decoded']['payload'][0:6].decode('utf-8'), 16)
-                    check = packet['decoded']['payload'][6:10].decode('utf-8')
-                    payload = packet['decoded']['payload'][10:]
-
-                    checkSucceed = hashlib.sha256(payload).hexdigest()[:4] == check
-                    if debug:
-                        print(str(packetNum) + " " + str(length) + " " + str(check) + " " + str(checkSucceed))
-                    if not checkSucceed:
-                        sendPacket(interface, i)
-                    i = packetNum
-                    file.seek(size * i)
-                    if debug:
-                        print("write packet " + str(i) + " at " + str(size * i))
-                    file.write(payload)
-                    file.flush()
-                    if debug:
-                        print(file.tell())
-                    if lastPacket < i:
-                        pbar.update(len(payload))
-                    lastPacket = i
-                    sendPacket(interface, i)
-
-
-
-                
-
-
-    def onConnection(interface, topic=pub.AUTO_TOPIC): # called when we (re)connect to the radio
-        print("device connected")
-    
-    meshtastic.serial_interface.SerialInterface(devPath=sys.argv[2])
-    pub.subscribe(onReceive, "meshtastic.receive")
-    pub.subscribe(onConnection, "meshtastic.connection.established")
-
-    def close():
-        print("Disconnecting...")
-        interface.close()
-
-    try:
-        while True:
-            time.sleep(0.01)    
-            if type(pbar) != int:
-                pbar.refresh()
-
-    except KeyboardInterrupt:
-        close()
