@@ -29,6 +29,7 @@ def update(current, new, max, done=False):
     global bar
     if done:
         bar.close()
+        print()
     if current == new:
         bar = tqdm(total=max, unit=" bytes", smoothing=1.0, leave=False)
     if current>=new:
